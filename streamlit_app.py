@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 import streamlit as st
@@ -282,13 +282,15 @@ def format_datetime(value: object) -> str:
 
 
 def render_flight_summary(flight: dict[str, object]) -> None:
-    status = flight.get("flight_status") or "unknown"
-    flight_data = flight.get("flight") if isinstance(flight.get("flight"), dict) else {}
-    flight_number = flight.get("flight_number") or flight_data.get("number") or flight_data.get("iata")
-    airline = flight.get("airline") if isinstance(flight.get("airline"), dict) else {}
-    departure = flight.get("departure") if isinstance(flight.get("departure"), dict) else {}
-    arrival = flight.get("arrival") if isinstance(flight.get("arrival"), dict) else {}
-    live = flight.get("live") if isinstance(flight.get("live"), dict) else {}
+    # Handle nested flight data structure
+    flight_data = flight.get("flight") if isinstance(flight.get("flight"), dict) else flight
+    
+    status = flight_data.get("flight_status") or "unknown"
+    flight_number = flight.get("flight_number") or flight_data.get("flight", {}).get("iata") or "Unknown"
+    airline = flight_data.get("airline") if isinstance(flight_data.get("airline"), dict) else {}
+    departure = flight_data.get("departure") if isinstance(flight_data.get("departure"), dict) else {}
+    arrival = flight_data.get("arrival") if isinstance(flight_data.get("arrival"), dict) else {}
+    live = flight_data.get("live") if isinstance(flight_data.get("live"), dict) else {}
 
     with st.container(border=True):
         st.subheader("Flight status")
@@ -324,6 +326,9 @@ def render_flight_summary(flight: dict[str, object]) -> None:
                 live_bits.append(f"Heading: {live.get('direction')}")
             if live_bits:
                 st.caption("Live data: " + " | ".join(live_bits))
+        
+        with st.expander("📋 View JSON"):
+            st.json(flight)
 
 
 def render_weather_summary(weather: dict[str, object]) -> None:
@@ -350,6 +355,9 @@ def render_weather_summary(weather: dict[str, object]) -> None:
             extra.append(f"Wind: {wind_speed} m/s")
         if extra:
             st.caption(" | ".join(extra))
+        
+        with st.expander("📋 View JSON"):
+            st.json(weather)
 
 
 def render_route_summary(route_result: dict[str, object]) -> None:
@@ -384,6 +392,9 @@ def render_route_summary(route_result: dict[str, object]) -> None:
                 st.markdown(f"**{flight_code}** - {airline_name}")
                 st.write(f"{dep_airport} → {arr_airport}")
                 st.caption(f"Status: {status.title()} | Departure: {format_datetime(flight.get('departure_scheduled'))} | Arrival: {format_datetime(flight.get('arrival_scheduled'))}")
+        
+        with st.expander("📋 View JSON"):
+            st.json(route_result)
 
 
 def render_chat_result(result: dict[str, object]) -> None:
@@ -430,7 +441,7 @@ def submit_prompt(user_prompt: str) -> None:
         st.session_state.last_prompt = user_prompt.strip()
         st.session_state.chat_history.append(
             {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "prompt": user_prompt.strip(),
                 "result": result,
             }
